@@ -21,7 +21,29 @@ export async function GET(request: NextRequest) {
     // Build aggregation pipeline
     const pipeline: any[] = [];
 
-    // Stage 1: Lookup User
+    // Stage 1: Filter by date early (if present, uses index)
+    if (createdAt) {
+      const date = new Date(createdAt);
+      const startOfDay = new Date(date.setHours(0, 0, 0, 0));
+      const endOfDay = new Date(date.setHours(23, 59, 59, 999));
+      pipeline.push({
+        $match: {
+          createdAt: { $gte: startOfDay, $lte: endOfDay },
+        },
+      });
+    }
+
+    // Stage 2: Sort early (uses createdAt index)
+    pipeline.push({ $sort: { createdAt: -1 } });
+
+    // Stage 3: Limit early if no user/company filters
+    // Key optimization: only lookup what we need to display
+    if (!email && !companyName) {
+      pipeline.push({ $skip: skip });
+      pipeline.push({ $limit: limit });
+    }
+
+    // Stage 4: Lookup User
     pipeline.push({
       $lookup: {
         from: 'users',
@@ -35,7 +57,16 @@ export async function GET(request: NextRequest) {
       $unwind: '$user',
     });
 
-    // Stage 2: Lookup Company through User
+    // Stage 5: Filter by email (if present)
+    if (email) {
+      pipeline.push({
+        $match: {
+          'user.email': email,
+        },
+      });
+    }
+
+    // Stage 6: Lookup Company through User
     pipeline.push({
       $lookup: {
         from: 'companies',
@@ -49,37 +80,76 @@ export async function GET(request: NextRequest) {
       $unwind: '$company',
     });
 
-    // Stage 3: Apply filters
-    const matchStage: any = {};
+    // Stage 7: Filter by company name (if present)
+    if (companyName) {
+      pipeline.push({
+        $match: {
+          'company.name': companyName,
+        },
+      });
+    }
 
+    // Stage 8: Limit late if we had user/company filters
+    if (email || companyName) {
+      pipeline.push({ $skip: skip });
+      pipeline.push({ $limit: limit });
+    }
+
+    // Create a separate pipeline for counting (without pagination)
+    const countPipeline: any[] = [];
+
+    // Add date filter if present
     if (createdAt) {
       const date = new Date(createdAt);
       const startOfDay = new Date(date.setHours(0, 0, 0, 0));
       const endOfDay = new Date(date.setHours(23, 59, 59, 999));
-      matchStage.createdAt = { $gte: startOfDay, $lte: endOfDay };
+      countPipeline.push({
+        $match: {
+          createdAt: { $gte: startOfDay, $lte: endOfDay },
+        },
+      });
     }
 
-    if (email) {
-      matchStage['user.email'] = email;
+    // If we have user/company filters, we need to do lookups for counting
+    if (email || companyName) {
+      countPipeline.push({
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user',
+        },
+      });
+      countPipeline.push({ $unwind: '$user' });
+
+      if (email) {
+        countPipeline.push({
+          $match: {
+            'user.email': email,
+          },
+        });
+      }
+
+      countPipeline.push({
+        $lookup: {
+          from: 'companies',
+          localField: 'user.companyId',
+          foreignField: '_id',
+          as: 'company',
+        },
+      });
+      countPipeline.push({ $unwind: '$company' });
+
+      if (companyName) {
+        countPipeline.push({
+          $match: {
+            'company.name': companyName,
+          },
+        });
+      }
     }
 
-    if (companyName) {
-      matchStage['company.name'] = companyName;
-    }
-
-    if (Object.keys(matchStage).length > 0) {
-      pipeline.push({ $match: matchStage });
-    }
-
-    // Stage 4: Sort by createdAt descending
-    pipeline.push({ $sort: { createdAt: -1 } });
-
-    // Create a separate pipeline for counting
-    const countPipeline = [...pipeline, { $count: 'total' }];
-
-    // Stage 5: Pagination
-    pipeline.push({ $skip: skip });
-    pipeline.push({ $limit: limit });
+    countPipeline.push({ $count: 'total' });
 
     // Stage 6: Project the final shape
     pipeline.push({
