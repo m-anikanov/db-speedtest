@@ -8,7 +8,7 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env') });
 const prisma = new PrismaClient();
 
 // Helper functions for generating random data
-const randomElement = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+const randomElement = <T>(arr: readonly T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
 const randomInt = (min: number, max: number): number =>
   Math.floor(Math.random() * (max - min + 1)) + min;
