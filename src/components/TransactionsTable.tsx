@@ -33,7 +33,7 @@ const fetchTransactions = async (
   if (filters.email) params.append('email', filters.email);
   if (filters.companyName) params.append('companyName', filters.companyName);
 
-  const response = await fetch(`/api/transactions?${params.toString()}`);
+  const response = await fetch(`/api/mongo-transactions?${params.toString()}`);
   if (!response.ok) {
     throw new Error('Failed to fetch transactions');
   }
