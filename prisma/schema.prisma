@@ -1,0 +1,65 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRESQL_URL")
+  directUrl = env("POSTGRESQL_DIRECT_URL")
+}
+
+model Company {
+  id            String   @id @default(cuid())
+  name          String
+  industry      String
+  country       String
+  revenue       Int
+  employeeCount Int
+  foundedYear   Int
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  users User[]
+
+  @@index([name])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  firstName String
+  lastName  String
+  phone     String
+  position  String
+  salary    Int
+  companyId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company      Company       @relation(fields: [companyId], references: [id])
+  transactions Transaction[]
+
+  @@index([email])
+  @@index([companyId])
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  amount      Float
+  currency    String
+  status      String
+  type        String
+  description String
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([createdAt])
+  @@index([userId])
+}
