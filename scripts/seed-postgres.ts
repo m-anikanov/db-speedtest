@@ -61,44 +61,42 @@ async function seed() {
     await prisma.company.deleteMany({});
     console.log('Existing data cleared');
 
-    // Generate and insert companies
+    // Generate and insert companies (batch insert)
     console.log('Generating 100 companies...');
-    const companies = [];
+    const companiesData = [];
     for (let i = 0; i < 100; i++) {
-      const company = await prisma.company.create({
-        data: {
-          name: `Company ${i + 1} ${randomElement(industries)}`,
-          industry: randomElement(industries),
-          country: randomElement(countries),
-          revenue: randomInt(100000, 100000000),
-          employeeCount: randomInt(10, 10000),
-          foundedYear: randomInt(1950, 2023),
-          isActive: Math.random() > 0.1,
-        },
+      companiesData.push({
+        name: `Company ${i + 1} ${randomElement(industries)}`,
+        industry: randomElement(industries),
+        country: randomElement(countries),
+        revenue: randomInt(100000, 100000000),
+        employeeCount: randomInt(10, 10000),
+        foundedYear: randomInt(1950, 2023),
+        isActive: Math.random() > 0.1,
       });
-      companies.push(company);
     }
+    await prisma.company.createMany({ data: companiesData });
+    const companies = await prisma.company.findMany();
     console.log(`✓ ${companies.length} companies created`);
 
-    // Generate and insert users
+    // Generate and insert users (batch insert)
     console.log('Generating 500 users...');
-    const users = [];
+    const usersData = [];
     for (let i = 0; i < 500; i++) {
       const firstName = randomElement(firstNames);
       const lastName = randomElement(lastNames);
-      const user = await prisma.user.create({
-        data: {
-          email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}.${i}@example.com`,
-          firstName,
-          lastName,
-          phone: `+1${randomInt(1000000000, 9999999999)}`,
-          position: randomElement(positions),
-          salary: randomInt(30000, 200000),
-          companyId: randomElement(companies).id,
-        },
+      usersData.push({
+        email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}.${i}@example.com`,
+        firstName,
+        lastName,
+        phone: `+1${randomInt(1000000000, 9999999999)}`,
+        position: randomElement(positions),
+        salary: randomInt(30000, 200000),
+        companyId: randomElement(companies).id,
       });
-      users.push(user);
     }
+    await prisma.user.createMany({ data: usersData });
+    const users = await prisma.user.findMany();
     console.log(`✓ ${users.length} users created`);
 
     // Generate and insert transactions (in batches)
